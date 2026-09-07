@@ -1,0 +1,17 @@
+{
+  "name": "pi-hypr-agent-monitor",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@earendil-works/pi-coding-agent": "^0.85.1",
+    "@types/node": "^26.5.0",
+    "typescript": "^7.0.2"
+  }
+}
