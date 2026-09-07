@@ -13,7 +13,7 @@ interface StatusData {
 }
 
 export default function (pi: ExtensionAPI) {
-  let currentStatus: StatusData | null = null; // Holds latest status
+  let currentStatus: StatusData | null = null;
   let sessionId: string = "";
   let sessionCwd: string = "";
 
@@ -27,71 +27,49 @@ export default function (pi: ExtensionAPI) {
   };
 
   const writeStatusFile = async (status: StatusData) => {
-    // Only write if the feature gate is enabled
-    if (process.env.PI_HYPR_MONITOR !== "1") {
-      return;
-    }
+    if (process.env.PI_HYPR_MONITOR !== "1") return;
 
     const filePath = getStatusFilePath();
     try {
       await fs.mkdir(dirname(filePath), { recursive: true });
-      
-      // Write atomically: temp file then rename
       const tempFilePath = filePath + ".tmp";
       await fs.writeFile(tempFilePath, JSON.stringify(status, null, 2));
       await fs.rename(tempFilePath, filePath);
-      
       currentStatus = status;
     } catch (err: any) {
-      // Silently fail - don't want to crash Pi if we can't write the status file
       console.error("Failed to write Pi status file:", err);
     }
   };
 
   const removeStatusFileIfOwner = async () => {
-    if (process.env.PI_HYPR_MONITOR !== '1') return;
+    if (process.env.PI_HYPR_MONITOR !== "1") return;
     const filePath = getStatusFilePath();
     try {
-      const data = await fs.readFile(filePath, 'utf8');
+      const data = await fs.readFile(filePath, "utf8");
       const parsed: StatusData = JSON.parse(data);
       if (parsed.pid === process.pid) {
         await fs.unlink(filePath);
         currentStatus = null;
       }
     } catch (err: any) {
-      if (err.code !== 'ENOENT') console.error('Failed to conditionally remove status file:', err);
-    }
-  };
-    // Only remove if the feature gate is enabled
-    if (process.env.PI_HYPR_MONITOR !== "1") {
-      return;
-    }
-
-    const filePath = getStatusFilePath();
-    try {
-      await fs.unlink(filePath);
-      currentStatus = null;
-    } catch (err: any) {
-      // Ignore if file doesn't exist
       if (err.code !== "ENOENT") {
-        console.error("Failed to remove Pi status file:", err);
+        console.error("Failed to conditionally remove status file:", err);
       }
     }
   };
 
   const updateStatus = async (newState: StatusData["state"], extraData: Partial<StatusData> = {}) => {
-    if (process.env.PI_HYPR_MONITOR !== "1") {
-      return;
-    }
+    if (process.env.PI_HYPR_MONITOR !== "1") return;
 
-    const now = Math.floor(Date.now() / 1000); // Unix seconds
+    const now = Math.floor(Date.now() / 1000);
+    const modelStr = extraData.model || currentStatus?.model || "unknown";
     
     const status: StatusData = {
       state: newState,
       pid: process.pid,
       session_id: sessionId,
       cwd: sessionCwd,
-      model: currentStatus?.model ?? "unknown",
+      model: modelStr,
       updated_at: now,
       ...extraData
     };
@@ -99,11 +77,14 @@ export default function (pi: ExtensionAPI) {
     await writeStatusFile(status);
   };
 
+  const serializeModel = (ctx: ExtensionContext) => {
+    return ctx.model ? `${ctx.model.provider}/${ctx.model.id}` : "unknown";
+  };
+
   pi.on("session_start", async (_event: any, ctx: ExtensionContext) => {
     sessionId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     sessionCwd = process.cwd();
-    
-    await updateStatus("idle", { model: ctx.model ? `${ctx.model.provider}/${ctx.model.id}` : "unknown" });
+    await updateStatus("idle", { model: serializeModel(ctx) });
   });
 
   pi.on("agent_start", async (_event: any, _ctx: ExtensionContext) => {
@@ -115,13 +96,10 @@ export default function (pi: ExtensionAPI) {
   });
 
   pi.on("model_select", async (_event: any, ctx: ExtensionContext) => {
-    if (currentStatus) {
-      await updateStatus(currentStatus.state, { model: ctx.model ? `${ctx.model.provider}/${ctx.model.id}` : currentStatus.model });
-    }
+    await updateStatus(currentStatus?.state || "idle", { model: serializeModel(ctx) });
   });
 
   pi.on("session_shutdown", async (_event: any, _ctx: ExtensionContext) => {
-    // Only remove if this process owns the status file
     await removeStatusFileIfOwner();
   });
 }
