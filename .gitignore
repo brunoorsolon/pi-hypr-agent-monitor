@@ -1,2 +1,6 @@
 node_modules/
 extensions/pi-hypr-agent-monitor/node_modules/
+index.js
+index.js.map
+test.js
+index.d.ts.map
