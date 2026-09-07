@@ -13,7 +13,7 @@ interface StatusData {
 }
 
 export default function (pi: ExtensionAPI) {
-  let currentStatus: StatusData | null = null;
+  let currentStatus: StatusData | null = null; // Holds latest status
   let sessionId: string = "";
   let sessionCwd: string = "";
 
@@ -48,7 +48,20 @@ export default function (pi: ExtensionAPI) {
     }
   };
 
-  const removeStatusFile = async () => {
+  const removeStatusFileIfOwner = async () => {
+    if (process.env.PI_HYPR_MONITOR !== '1') return;
+    const filePath = getStatusFilePath();
+    try {
+      const data = await fs.readFile(filePath, 'utf8');
+      const parsed: StatusData = JSON.parse(data);
+      if (parsed.pid === process.pid) {
+        await fs.unlink(filePath);
+        currentStatus = null;
+      }
+    } catch (err: any) {
+      if (err.code !== 'ENOENT') console.error('Failed to conditionally remove status file:', err);
+    }
+  };
     // Only remove if the feature gate is enabled
     if (process.env.PI_HYPR_MONITOR !== "1") {
       return;
@@ -78,7 +91,7 @@ export default function (pi: ExtensionAPI) {
       pid: process.pid,
       session_id: sessionId,
       cwd: sessionCwd,
-      model: "unknown",
+      model: currentStatus?.model ?? "unknown",
       updated_at: now,
       ...extraData
     };
@@ -90,7 +103,7 @@ export default function (pi: ExtensionAPI) {
     sessionId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     sessionCwd = process.cwd();
     
-    await updateStatus("idle", { model: ctx.model?.toString() ?? "unknown" });
+    await updateStatus("idle", { model: ctx.model ? `${ctx.model.provider}/${ctx.model.id}` : "unknown" });
   });
 
   pi.on("agent_start", async (_event: any, _ctx: ExtensionContext) => {
@@ -103,11 +116,12 @@ export default function (pi: ExtensionAPI) {
 
   pi.on("model_select", async (_event: any, ctx: ExtensionContext) => {
     if (currentStatus) {
-      await updateStatus(currentStatus.state, { model: ctx.model?.toString() ?? "unknown" });
+      await updateStatus(currentStatus.state, { model: ctx.model ? `${ctx.model.provider}/${ctx.model.id}` : currentStatus.model });
     }
   });
 
   pi.on("session_shutdown", async (_event: any, _ctx: ExtensionContext) => {
-    await removeStatusFile();
+    // Only remove if this process owns the status file
+    await removeStatusFileIfOwner();
   });
 }
