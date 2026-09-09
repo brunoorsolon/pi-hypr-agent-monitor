@@ -4,7 +4,7 @@
   "type": "module",
   "main": "index.ts",
   "scripts": {
-    "test": "node extensions/pi-hypr-agent-monitor/test.js"
+    "test": "node --test test.js"
   },
   "keywords": [],
   "author": "",
