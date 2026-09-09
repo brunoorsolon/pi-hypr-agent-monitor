@@ -1,0 +1,19 @@
+{
+  "name": "pi-hypr-agent-monitor",
+  "version": "1.0.0",
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/brunoorsolon/pi-hypr-agent-monitor.git"
+  },
+  "scripts": {
+    "test": "node --test test.js"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*"
+  },
+  "pi": {
+    "extensions": ["./index.ts"]
+  },
+  "license": "MIT"
+}
